@@ -10,17 +10,17 @@
 #include "base/json/json_writer.h"
 #include "bat/ledger/internal/attestation/attestation_iosx.h"
 #include "bat/ledger/internal/ledger_impl.h"
-#include "bat/ledger/internal/request/request_attestation.h"
-#include "bat/ledger/internal/response/response_attestation.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
 
-namespace braveledger_attestation {
+namespace ledger {
+namespace attestation {
 
 AttestationIOS::AttestationIOS(bat_ledger::LedgerImpl* ledger) :
-    Attestation(ledger) {
+    Attestation(ledger),
+    promotion_server_(new endpoint::PromotionServer(ledger)) {
 }
 
 AttestationIOS::~AttestationIOS() = default;
@@ -93,43 +93,26 @@ void AttestationIOS::Start(
     callback(ledger::Result::LEDGER_ERROR, "");
     return;
   }
-
-  base::Value dictionary(base::Value::Type::DICTIONARY);
-  dictionary.SetStringKey("publicKeyHash", key);
-  dictionary.SetStringKey("paymentId", payment_id);
-  std::string json;
-  base::JSONWriter::Write(dictionary, &json);
-
   auto url_callback = std::bind(&AttestationIOS::OnStart,
       this,
       _1,
+      _2,
       callback);
 
-  const std::string url = braveledger_request_util::GetStartAttestationIOSUrl();
-
-  ledger_->LoadURL(
-      url,
-      {},
-      json,
-      "application/json; charset=utf-8",
-      ledger::UrlMethod::POST,
-      url_callback);
+  promotion_server_->post_devicecheck()->Request(key, url_callback);
 }
 
 void AttestationIOS::OnStart(
-    const ledger::UrlResponse& response,
+    const ledger::Result result,
+    const std::string& nonce,
     StartCallback callback) {
-  BLOG(6, ledger::UrlResponseToString(__func__, response));
-
-  const ledger::Result result =
-      braveledger_response_util::CheckStartAttestation(response);
   if (result != ledger::Result::LEDGER_OK) {
     BLOG(0, "Failed to start attestation");
     callback(ledger::Result::LEDGER_ERROR, "");
     return;
   }
 
-  callback(ledger::Result::LEDGER_OK, response.body);
+  callback(ledger::Result::LEDGER_OK, nonce);
 }
 
 void AttestationIOS::Confirm(
@@ -144,39 +127,25 @@ void AttestationIOS::Confirm(
     return;
   }
 
-  base::Value dictionary(base::Value::Type::DICTIONARY);
-  dictionary.SetStringKey("attestationBlob",
-      *parsed_solution.FindStringKey("blob"));
-  dictionary.SetStringKey("signature",
-      *parsed_solution.FindStringKey("signature"));
-  std::string payload;
-  base::JSONWriter::Write(dictionary, &payload);
-
   const std::string nonce = *parsed_solution.FindStringKey("nonce");
-  const std::string url =
-      braveledger_request_util::GetConfirmAttestationIOSUrl(nonce);
+  const std::string blob = *parsed_solution.FindStringKey("blob");
+  const std::string signature = *parsed_solution.FindStringKey("signature");
 
   auto url_callback = std::bind(&AttestationIOS::OnConfirm,
       this,
       _1,
       callback);
 
-  ledger_->LoadURL(
-      url,
-      {},
-      payload,
-      "application/json; charset=utf-8",
-      ledger::UrlMethod::PUT,
+  promotion_server_->put_devicecheck()->Request(
+      blob,
+      signature,
+      nonce,
       url_callback);
 }
 
 void AttestationIOS::OnConfirm(
-    const ledger::UrlResponse& response,
+    const ledger::Result result,
     ConfirmCallback callback) {
-  BLOG(6, ledger::UrlResponseToString(__func__, response));
-
-  const ledger::Result result =
-      braveledger_response_util::CheckConfirmAttestation(response);
   if (result != ledger::Result::LEDGER_OK) {
     BLOG(0, "Failed to confirm attestation");
     callback(ledger::Result::LEDGER_ERROR);
@@ -186,4 +155,5 @@ void AttestationIOS::OnConfirm(
   callback(ledger::Result::LEDGER_OK);
 }
 
-}  // namespace braveledger_attestation
+}  // namespace attestation
+}  // namespace ledger

@@ -234,11 +234,7 @@ void RewardsBrowserTestResponse::Get(
     return;
   }
 
-  if (URLMatches(
-      url,
-      "/wallet/uphold",
-      PREFIX_V3,
-      ServerTypes::kPromotion)) {
+  if (url.find("/v3/wallet/uphold") != std::string::npos) {
     if (user_funds_balance_) {
       *response = user_funds_balance_resp_;
     } else {
@@ -252,11 +248,7 @@ void RewardsBrowserTestResponse::Get(
     return;
   }
 
-  if (URLMatches(
-      url,
-      "/promotions?",
-      PREFIX_V1,
-      ServerTypes::kPromotion)) {
+  if (url.find("v1/promotions?") != std::string::npos) {
     if (empty_promotion_key_) {
       *response = promotion_empty_key_;
     } else {
@@ -265,11 +257,7 @@ void RewardsBrowserTestResponse::Get(
     return;
   }
 
-  if (URLMatches(
-      url,
-      "/promotions/",
-      PREFIX_V1,
-      ServerTypes::kPromotion)) {
+  if (url.find("/v1/promotions") != std::string::npos) {
     if (url.find("claims") != std::string::npos) {
       *response = creds_tokens_;
     } else {
@@ -278,11 +266,7 @@ void RewardsBrowserTestResponse::Get(
     return;
   }
 
-  if (URLMatches(
-      url,
-      "/captchas",
-      PREFIX_V1,
-      ServerTypes::kPromotion)) {
+  if (url.find("/v1/captchas") != std::string::npos) {
     *response = captcha_;
   }
 
